@@ -24,10 +24,11 @@
           <field name="arch" type="xml">
             <form string="International Financial Reporting Standards" version="7.0">
               <header>
+                <button string="Print Report" name='%(wizard_report_print)d' type='action' icon='gtk-print' class="oe_inline_header oe_highlight"/>
                 <button string="Compute" name='compute' type='object' icon='gtk-execute' class="oe_inline_header"/>
                 <label for='help'/>
                 <field name='help'/>
-                <field name="state" widget="statusbar" statusbar_visible="draft,ready,done,cancel" class="oe_inline_header" />
+                <!-- <field name="state" widget="statusbar" statusbar_visible="draft,ready,done,cancel" class="oe_inline_header" /> -->
               </header>
                 <group>
                     <group>
@@ -48,7 +49,7 @@
                         <group colspan='2' attrs="{'invisible':[('help','=',False)]}">
                             <i><label string='Each report has to be related to a Company. It is a mandatory field not an option. This is due to the fact that you will be using Accounting Accounts that are only related to the company you set Here.'/></i>
                         </group>
-                        <field name="company_id" on_change='onchange_company_id(company_id)' required="1"/>
+                        <field name="company_id" required="1"/>
                         <group colspan='2' attrs="{'invisible':[('help','=',False)]}">
                             <i><label string='The currency set below is not an option nor you will be able to set its valued. It is automatically set when you select the company above. Thus the currency in this report is regarding the one in the company of the report. You can later set you own currency when print the report.'/></i>
                         </group>
@@ -86,9 +87,9 @@
                           <field name="cons_ids" />
                           <field name="total_ids" />
                           <field name="operand_ids" />
-                          <field name="amount" />
-                         <field name="value" />
+                          <field name="value" />
                           <field name="invisible" />
+                          <field name="amount" />
                         </tree>
                         <form string="IFRS Lines">
                           <header>
@@ -282,7 +283,7 @@
                                 <field
                                     name="total_ids" widget="many2many"
                                     nolabel="1" colspan='2'
-                                    domain="[('type','not in',('abstract','constant')),('id','!=',id),'|',('ifrs_id','=',parent.id),('ifrs_id','in',parent.ifrs_ids[0][2])]"
+                                    domain="[('type','not in',('abstract')),('id','!=',id),'|',('ifrs_id','=',parent.id),('ifrs_id','in',parent.ifrs_ids[0][2])]"
                                     attrs="{'invisible':[('type','!=','total')]}">
                                     <!--attrs="{'invisible':[('type','!=','total')], 'required':[('type','=','total')]}">-->
                                     <tree>
@@ -296,7 +297,7 @@
                                 <field
                                     name="operand_ids" widget="many2many"
                                     nolabel='1' colspan='2'
-                                    domain="[('type','not in',('abstract','constant')),('id','!=',id),'|',('ifrs_id','=',parent.id),('ifrs_id','in',parent.ifrs_ids[0][2])]"
+                                    domain="[('type','not in',('abstract')),('id','!=',id),'|',('ifrs_id','=',parent.id),('ifrs_id','in',parent.ifrs_ids[0][2])]"
                                     attrs="{'invisible':[('type','!=','total')], 'readonly':[('operator','=','without')], 'required':[('type','=','total'),('operator','!=','without')]}">
                                     <!--attrs="{'invisible':[('type','!=','total')], 'readonly':[('operator','=','without')], 'required':[('type','=','total'),('operator','!=','without')]}">-->
                                     <tree>
@@ -413,13 +414,20 @@
 
         <menuitem
             id="sub_menu_ifrs_ifrs"
-            name="IFRS"
+            name="IFRS (Templates)"
             parent="menu_ifrs_ifrs"
             action="action_ifrs_ifrs_form"
         />
 
+        <menuitem
+            id="sub_menu_ifrs_wizard"
+            name="IFRS (Print Report)"
+            parent="menu_ifrs_ifrs"
+            action="create_wizard_report_action"
+        />
+
         <record id="account_group_auditory.group_account_user_audit" model="res.groups">
-            <field name="menu_access" eval="[(4, ref('ifrs_report.menu_ifrs_ifrs'))]"/>
+            <field name="menu_access" eval="[(4, ref('ifrs_report.menu_ifrs_ifrs')), (4, ref('ifrs_report.menu_ifrs_ifrs'))]"/>
         </record>
 
     </data>

@@ -1,175 +1,118 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-2010 Tiny SPRL (<http://tiny.be>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
 
-import time
-
-from openerp.osv import fields, osv
+from openerp import models, fields, api
 
 
-class ifrs_report_wizard(osv.osv_memory):
-
-    """ Wizard que permite al usuario elegir que periodo quiere imprimir del
-    año fiscal """
+class IfrsReportWizard(models.TransientModel):
+    """
+    This wizard allows to print report from templates for two or twelve columns
+    let that be pdf or xls file.
+    """
 
     _name = 'ifrs.report.wizard'
     _description = 'IFRS Report Wizard'
-    _rec_name = 'report_type'
+    _rec_name = 'ifrs_id'
 
-    def onchange_company_id(self, cr, uid, ids, company_id, context=None):
-        context = context and dict(context) or {}
-        context['company_id'] = company_id
-        res = {'value': {}}
-
-        if not company_id:
-            return res
-
-        cur_id = self.pool.get('res.company').browse(
-            cr, uid, company_id, context=context).currency_id.id
-        fy_id = self.pool.get('account.fiscalyear').find(
-            cr, uid, context=context)
-
-        res['value'].update({'fiscalyear_id': fy_id})
-        res['value'].update({'currency_id': cur_id})
+    @api.multi
+    def _default_ifrs(self):
+        ctx = self._context
+        res = False
+        if ctx.get('active_id') and ctx.get('active_model') == 'ifrs.ifrs':
+            return ctx.get('active_id')
         return res
 
-    _columns = {
-        'period': fields.many2one('account.period', 'Force period',
-                                  help=('Fiscal period to assign to the\
-                                        invoice. Keep empty to use the period\
-                                        of the current date.')),
-        'fiscalyear_id': fields.many2one('account.fiscalyear', 'Fiscal Year',
-                                         help='Fiscal Year'),
-        'company_id': fields.many2one('res.company', string='Company',
-                                      ondelete='cascade', required=True,
-                                      help='Company name'),
-        'currency_id':
-            fields.many2one('res.currency', 'Currency',
-                            help=('Currency at which this report will be \
-                                  expressed. If not selected will be used the \
-                                  one set in the company')),
-        'exchange_date': fields.date('Exchange Date', help=('Date of change\
-                                                            that will be\
-                                                            printed in the\
-                                                            report, with\
-                                                            respect to the\
-                                                            currency of the\
-                                                            company')),
-        'report_type': fields.selection([
-            ('all', 'All Fiscalyear'),
-            ('per', 'Force Period')],
-            string='Type', required=True, help=('Indicates if the report it\
-                                                will be printed for the entire\
-                                                fiscal year, or for a\
-                                                particular period')),
-        'columns': fields.selection([
-            ('ifrs', 'Two Columns'),
-            ('webkitaccount.ifrs_12', 'Twelve Columns'),
-            # ('ifrs_12_partner_detail', 'With Partner Detail')
-        ],
-            string='Number of Columns',
-            help='Number of columns that will be printed in the report:'
-            " -Two Colums(02),-Twelve Columns(12)"),
-        'target_move': fields.selection([('posted', 'All Posted Entries'),
-                                         ('all', 'All Entries'),
-                                         ], 'Target Moves', help=('Print All\
-                                                                  Accounting\
-                                                                  Entries or\
-                                                                  just Posted\
-                                                                  Accounting\
-                                                                  Entries')),
-        'report_format': fields.selection([
-            ('pdf', 'PDF'),
-            ('spreadsheet', 'Spreadsheet')], 'Report Format')
-    }
+    @api.multi
+    def _default_fiscalyear(self):
+        return self.env['account.fiscalyear'].find()
 
-    _defaults = {
-        'report_type': 'all',
-        'target_move': 'posted',
-        'company_id': lambda self, cr, uid, c:
-        self.pool.get('ifrs.ifrs').browse(cr, uid,
-                                          c.get('active_id')).company_id.id,
-        'fiscalyear_id': lambda self, cr, uid, c:
-        self.pool.get('ifrs.ifrs').browse(cr, uid,
-                                          c.get('active_id')).fiscalyear_id.id,
-        'exchange_date': fields.date.today,
-        'columns': 'ifrs',
-        'report_format': 'pdf'
-    }
+    @api.multi
+    def _default_currency(self):
+        return self.env.user.company_id.currency_id
 
-    def default_get(self, cr, uid, ffields, context=None):
-        context = context and dict(context) or {}
-        res = super(ifrs_report_wizard, self).default_get(
-            cr, uid, ffields, context=context)
-        # res.update({'uid_country':
-        # self._get_country_code(cr,uid,context=context)})
-        return res
+    ifrs_id = fields.Many2one(
+        'ifrs.ifrs', string='IFRS Report Template',
+        default=_default_ifrs,
+        required=True)
+    period = fields.Many2one(
+        'account.period', string='Force period',
+        help=('Fiscal period to assign to the invoice. Keep empty to use the '
+              'period of the current date.'))
+    fiscalyear_id = fields.Many2one(
+        'account.fiscalyear', string='Fiscal Year',
+        default=_default_fiscalyear,
+        help=('Fiscal Year to be used in report'))
+    company_id = fields.Many2one(
+        'res.company', string='Company',
+        ondelete='cascade', required=True,
+        default=lambda self: self.env['res.company']._company_default_get(
+            'ifrs.ifrs'),
+        help=('Company name'))
+    currency_id = fields.Many2one(
+        'res.currency', string='Currency',
+        ondelete='cascade', required=True,
+        default=_default_currency,
+        help=('Currency at which this report will be expressed. If not '
+              'selected will be used the one set in the company'))
+    exchange_date = fields.Date(
+        string='Exchange Date',
+        default=fields.Date.context_today,
+        help=('Date of change that will be printed in the report, with '
+              'respect to the currency of the company'))
+    report_type = fields.Selection(
+        [('all', 'All Fiscalyear'),
+         ('per', 'Force Period')],
+        string='Type', required=True,
+        default='all',
+        help=('Indicates if the report it will be printed for the entire '
+              'fiscal year, or for a particular period'))
+    columns = fields.Selection(
+        [('ifrs', 'Two Columns'),
+         ('webkitaccount.ifrs_12', 'Twelve Columns')],
+        string='Number of Columns', required=True,
+        default='ifrs',
+        help=('Number of columns that will be printed in the report:'
+              ' -Two Colums(02),-Twelve Columns(12)'))
+    target_move = fields.Selection(
+        [('posted', 'All Posted Entries'),
+         ('all', 'All Entries')],
+        string='Target Moves',
+        default='posted',
+        help='Print All Accounting Entries or just Posted Accounting Entries')
+    report_format = fields.Selection(
+        [('pdf', 'PDF'),
+         ('spreadsheet', 'Spreadsheet')],
+        string='Report Format',
+        default='pdf',
+        help='Means if the report is to be print in PDF or XLS file')
 
-    def _get_period(self, cr, uid, context=None):
-        """ Return the current period id """
-        context = context and dict(context) or {}
-
-        account_period_obj = self.pool.get('account.period')
-        ids = account_period_obj.find(
-            cr, uid, time.strftime('%Y-%m-%d'), context=context)
-        period_id = ids[0]
-        return period_id
-
-    def _get_fiscalyear(self, cr, uid, context=None, period_id=False):
-        """ Return fiscalyear id for the period_id given.
-            If period_id is nor given then return the current fiscalyear """
-
-        if period_id:
-            period_obj = self.pool.get(
-                'account.period').browse(cr, uid, period_id)
-            fiscalyear_id = period_obj.fiscalyear_id.id
-        else:
-            fiscalyear_obj = self.pool.get('account.fiscalyear')
-            ids = fiscalyear_obj.find(cr, uid, time.strftime(
-                '%Y-%m-%d'), context=context)
-            fiscalyear_id = ids
-        return fiscalyear_id
-
-    def print_report(self, cr, uid, ids, context=None):
-        context = context and dict(context) or {}
-        datas = {'active_ids': context.get('active_ids', [])}
-        wizard_ifrs = self.browse(cr, uid, ids, context=context)[0]
-        datas['report_type'] = str(wizard_ifrs.report_type)
-        datas['company'] = wizard_ifrs.company_id.id
-        datas['target_move'] = wizard_ifrs.target_move
-        datas['exchange_date'] = wizard_ifrs.exchange_date
-        datas['currency_wizard'] = wizard_ifrs.currency_id.id
-        datas['currency_wizard_name'] = wizard_ifrs.currency_id.name
+    @api.multi
+    def print_report(self):
+        context = dict(
+            self._context,
+            active_id=self.ifrs_id.id,
+            active_ids=[self.ifrs_id.id],
+            active_model='ifrs.ifrs',
+            )
+        datas = {'active_ids': [self.ifrs_id.id]}
+        datas['active_model'] = 'ifrs.ifrs'
+        datas['active_model'] = 'ifrs.ifrs'
+        datas['wizard_id'] = self.id
+        datas['report_type'] = str(self.report_type)
+        datas['company'] = self.company_id.id
+        datas['target_move'] = self.target_move
+        datas['exchange_date'] = self.exchange_date
+        datas['currency_wizard'] = self.currency_id.id
+        datas['currency_wizard_name'] = self.currency_id.name
 
         if datas['report_type'] == 'all':
-            datas['fiscalyear'] = wizard_ifrs.fiscalyear_id.id or \
-                self._get_fiscalyear(cr, uid, context=context)
+            datas['fiscalyear'] = self.fiscalyear_id.id
             datas['period'] = False
         else:
-            datas['period'] = wizard_ifrs.period.id or self._get_period(
-                cr, uid, context=context)
-            datas['fiscalyear'] = self._get_fiscalyear(
-                cr, uid, context=context, period_id=datas['period'])
+            datas['period'] = self.period.id
+            datas['fiscalyear'] = self.fiscalyear_id.id
 
         if datas['report_type'] == 'all' and \
-                str(wizard_ifrs.columns) == 'webkitaccount.ifrs_12':
+                str(self.columns) == 'webkitaccount.ifrs_12':
             report_name = 'ifrs_report.ifrs_landscape_pdf_report'
             context['landscape'] = True
             datas['landscape'] = True
@@ -178,14 +121,10 @@ class ifrs_report_wizard(osv.osv_memory):
             datas['landscape'] = False
 
         context['xls_report'] = False
-        if wizard_ifrs.report_format == 'spreadsheet':
+        if self.report_format == 'spreadsheet':
             context['xls_report'] = True
 
         # This method will do a better job than me at arranging a dictionary to
         # print report
-        return self.pool['report'].get_action(cr, uid, [], report_name,
-                                              data=datas, context=context)
-
-ifrs_report_wizard()
-
-# vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:
+        return self.env['report'].with_context(context).get_action(
+            self.ifrs_id, report_name, data=datas)
